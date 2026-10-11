@@ -1,0 +1,10 @@
+# MASCdb images, IGRA soundings and the simulator output: ~24 GB in total and
+# every file is re-downloadable or re-generable from src/. Nothing here is a
+# result, so none of it is versioned.
+data/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/

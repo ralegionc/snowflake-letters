@@ -1,0 +1,8 @@
+ep0 loss 2.5439 927s
+ep1 loss 1.6844 826s
+ep2 loss 1.3790 837s
+ep3 loss 1.2192 795s
+ep4 loss 1.0631 848s
+ep5 loss 0.9091 836s
+T1: posterior-mean MAE 8.17 C (prior 7.73); 50% interval coverage 0.37, 90% coverage 0.75
+T2: posterior-mean MAE 9.36 C (prior 8.30); 50% interval coverage 0.39, 90% coverage 0.76
