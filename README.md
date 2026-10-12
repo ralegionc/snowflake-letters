@@ -6,6 +6,8 @@ Nakaya called snowflakes "letters sent from the sky": crystal habit depends on t
 
 ## Data
 
+> The raw inputs are not in this repository. [DATA.md](DATA.md) records exactly which files were used, with sizes and fingerprints, and how to re-fetch them.
+
 - **Snowflakes:** [MASCDB v1.1](https://zenodo.org/records/8083133), Multi-Angle Snowflake Camera triplets with hydrometeor class, riming and melting labels, plus co-located surface weather.
 - **Truth aloft:** [IGRA2](https://www.ncei.noaa.gov/products/weather-balloon/integrated-global-radiosonde-archive) radiosondes. Dumont d'Urville and Davis are co-located with their MASC sites; Payerne is 32 to 80 km from the Swiss and French Jura sites.
 - **Sample:** 130,926 dry, non-blowing-snow triplets from 8 campaigns, 2,853 snowy hours, 254 snow episodes.
@@ -124,6 +126,35 @@ The likely culprits, in order:
 
 Closing the first gap would take a domain-adaptation step or higher-resolution imagery (for example a holographic imager or a cloud-chamber dataset with known growth conditions) as a calibration set.
 
+### Second attempt: fixed columns, then domain adaptation
+
+**Diagnosis.**
+- Most real "columns" that v1 read as plates are plates: stellar and sectored crystals mislabelled by MASCDB (top row below).
+- The genuine gap was that simulated columns were too slender: median view elongation 3.7 against 2.9 for real ones.
+- With m = 10, the kinetics fits give growth ratios near 10^3 at -6 C, while real needle tips become diffusion-limited.
+
+![column diagnosis](figures/column_diagnosis.png)
+
+**Changes.**
+- **v2:** adds a saturating anisotropy cap, Gamma_eff = Gamma / (1 + Gamma / Gamma_max), applied symmetrically to plates, with Gamma_max ~ log-uniform(3, 30) as a nuisance. Simulated column elongation drops to 2.5 and the habit ordering with temperature is unchanged. 100,000 new simulations.
+- **v2dann:** additionally trains with a gradient-reversal domain classifier (DANN) against the 9,902 unlabeled real single crystals.
+- **Pre-specified primary:** v2dann, T2, all single crystals, the same episode-level permutation test.
+
+| Model | P(col) for MASCDB columns | P(capped) for combinations | Planar mode | z (T2, all) | p | z expected if physics right |
+|---|---|---|---|---|---|---|
+| v1 | 0.41 | 0.71 | -11 C | +0.69 | 0.24 | 4.1 to 5.4 |
+| v2 (column fix) | 0.51 | 0.74 | **-15 C** | +1.76 | 0.04 | 4.2 to 5.3 |
+| v2dann (primary) | 0.56 | 0.20 | -32 C (prior edge) | +1.15 | 0.13 | 3.7 to 5.2 |
+
+On the clean subset (761 crystals) every model gives |z| < 1.
+
+**Verdict.**
+- **The pre-specified primary test is null.**
+- **The column fix moved things the right way.** Columns transfer better, planar crystals now peak in the -15 C dendrite band where physics puts them, and the sounding test gives z = +1.76 (T1: +2.15). That is a weak, secondary signal and not significant once the twelve model x target x subset tests are counted.
+- **Domain adaptation hurt.** It never fully aligned the domains (domain-classifier accuracy stayed at 67%), and it erased the capped-column signal along with the sim-only cues.
+- **Even v2 reaches well under half the z a correct simulator would produce.** Most of the physical signal in the real images is still lost between simulation and camera.
+- **The useful lesson is where the gap is:** crystal geometry at the extremes of the habit diagram mattered more than photometry. The next lever is a better geometric model of real columns and dendrites (for example a 3D cellular growth model) checked against a small set of hand-verified real crystals, rather than more adversarial alignment.
+
 ## Reproduce
 
 ```
@@ -135,9 +166,11 @@ python src/cnn.py scalar 8 12
 python src/cnn.py image 8 12   # about 4 h on 12 CPU threads
 python src/evaluate.py
 python src/figures.py
-python src/sim.py 100000 10 sims      # about 15 min
-python src/npe.py train 6 12          # about 85 min on CPU
-python src/npe.py heldout
-python src/npe.py apply
-python src/validate_sbi.py
+python src/sim.py 100000 10 sims      # v1 simulator, about 15 min
+python src/sim.py 100000 10 sims2     # v2 simulator with the anisotropy cap
+python src/npe.py train v2 sims2 0 6 6        # or: train v2dann sims2 1 6 6 (domain adaptation)
+python src/npe.py heldout v2 sims2
+python src/npe.py apply v2
+python src/validate_sbi.py v2
+python src/power_sbi.py v2 sims2 all
 ```
